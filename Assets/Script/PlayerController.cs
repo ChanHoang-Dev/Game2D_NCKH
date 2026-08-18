@@ -39,6 +39,10 @@ namespace Cainos.PixelArtTopDown_Basic
         private bool isGhost = false;
         private bool isEliminated = false; // Người bị bắt (loại bỏ)
 
+        private Vector2 moveDir = Vector2.zero;
+        private float currentSpeed;
+        private bool isSprinting;
+
         public bool IsGhost { get { return isGhost; } }
         public bool IsEliminated { get { return isEliminated; } }
 
@@ -47,6 +51,11 @@ namespace Cainos.PixelArtTopDown_Basic
             animator = GetComponent<Animator>();
             rb = GetComponent<Rigidbody2D>();
             pv = GetComponent<PhotonView>();
+
+            if (rb != null)
+            {
+                rb.gravityScale = 0f;
+            }
         }
 
         private void Start()
@@ -74,7 +83,7 @@ namespace Cainos.PixelArtTopDown_Basic
             // Set initial color
             UpdateVisuals();
         }
-        private void OnDestroy() 
+        private void OnDestroy()
         {
             // Unregister from game manager
             if (GameManager.Instance != null)
@@ -105,41 +114,13 @@ namespace Cainos.PixelArtTopDown_Basic
             // Không cho di chuyển nếu bị loại
             if (isEliminated) return;
 
-            HandleMovement();
-        }
+            HandleInput();
+            UpdateAnimatorAndUI();
 
-        private void HandleMovement()
-        {
-            Vector2 dir = Vector2.zero;
-
-            dir.x = Input.GetAxisRaw("Horizontal");
-            dir.y = Input.GetAxisRaw("Vertical");
-            if (dir.x != 0 || dir.y != 0)
-            {
-                animator.SetFloat("X", dir.x);
-                animator.SetFloat("Y", dir.y);
-            }
-            animator.SetFloat("Speed", dir.magnitude);
-
-            dir.Normalize();
-            bool isMoving = dir.magnitude > 0;
-            bool isSprinting = Input.GetKey(KeyCode.LeftShift) && currentMana > 0 && isMoving;
-
-            float currentSpeed = walkSpeed;
-
-            if (isSprinting)
-            {
-                currentSpeed = sprintSpeed;
-                currentMana -= manaDrainRate * Time.deltaTime;
-            }
-
-            currentMana = Mathf.Clamp(currentMana, 0, maxMana);
-
-            rb.linearVelocity = currentSpeed * dir;
-            if(Input.GetKeyDown(KeyCode.Space))
+            if (Input.GetKeyDown(KeyCode.Space))
             {
                 PlayerNotification notification = GetComponent<PlayerNotification>();
-                if(notification != null)
+                if (notification != null)
                 {
                     notification.ShowNotification("Hello, this is a test notification!");
                 }
@@ -148,6 +129,51 @@ namespace Cainos.PixelArtTopDown_Basic
                     Debug.LogWarning("PlayerNotification component not found on player!");
                 }
             }
+        }
+
+        private void FixedUpdate()
+        {
+            if (!pv.IsMine) return;
+            if (isEliminated) return;
+
+            // Chỉ áp dụng velocity trong FixedUpdate để đồng bộ đúng nhịp với physics engine,
+            // tránh kẹt/dính khi va chạm Tilemap Collider
+            rb.linearVelocity = currentSpeed * moveDir;
+        }
+
+        // Đọc input, tính hướng và tốc độ - KHÔNG đụng vào Rigidbody ở đây
+        private void HandleInput()
+        {
+            Vector2 dir = Vector2.zero;
+            dir.x = Input.GetAxisRaw("Horizontal");
+            dir.y = Input.GetAxisRaw("Vertical");
+
+            dir.Normalize();
+            moveDir = dir;
+
+            bool isMoving = dir.magnitude > 0;
+            isSprinting = Input.GetKey(KeyCode.LeftShift) && currentMana > 0 && isMoving;
+
+            currentSpeed = isSprinting ? sprintSpeed : walkSpeed;
+
+            if (isSprinting)
+            {
+                currentMana -= manaDrainRate * Time.deltaTime;
+            }
+
+            currentMana = Mathf.Clamp(currentMana, 0, maxMana);
+        }
+
+        // Cập nhật Animator + UI mana - không liên quan physics nên vẫn ở Update() bình thường
+        private void UpdateAnimatorAndUI()
+        {
+            if (moveDir.x != 0 || moveDir.y != 0)
+            {
+                animator.SetFloat("X", moveDir.x);
+                animator.SetFloat("Y", moveDir.y);
+            }
+            animator.SetFloat("Speed", moveDir.magnitude);
+
             UpdateUIMana();
         }
 
@@ -191,6 +217,7 @@ namespace Cainos.PixelArtTopDown_Basic
             }
 
             // Stop movement
+            moveDir = Vector2.zero;
             if (rb != null)
             {
                 rb.linearVelocity = Vector2.zero;

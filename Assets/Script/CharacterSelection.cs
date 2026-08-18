@@ -3,79 +3,38 @@ using UnityEngine.UI;
 
 public class CharacterSelection : MonoBehaviour
 {
-    [Header("UI")]
-    public Image[] chars;
-    public Button select_LeftBtn;
-    public Button select_RightBtn;
+    [Header("Preview")]
+    public Image previewImage; // Ô trống bên phải, hiển thị sprite to của nhân vật đã chọn
 
+    public int currentIndex = -1; // Chưa chọn nhân vật nào lúc đầu
 
-    public int currentIndex = 0;
+    [Header("Optional")]
+    public bool hidePreviewWhenNoneSelected = true;
 
-    Vector2 bigSize = new Vector2(200,200);
-    Vector2 smallSize = new Vector2(100,100);
-
-    Vector2 leftHidePos = new Vector2(-200,0);
-    Vector2 centerPos = new Vector2(0,0);
-    Vector2 rightPos = new Vector2(200,0);
-
-    Color bigColor = Color.white;
-    Color smallColor = new Color(1,1,1,0.4f);
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    private void Start()
     {
-        UpdateView();
-    }
-
-    public void Next()
-    {
-        if(currentIndex < chars.Length - 1)
+        if (hidePreviewWhenNoneSelected && previewImage != null && currentIndex < 0)
         {
-            currentIndex++;
-            UpdateView();
+            previewImage.enabled = false; // Ẩn ô preview cho tới khi chọn nhân vật
         }
     }
-    public void Previous()
+
+    // Gọi từ CharacterItem khi người chơi click vào 1 nhân vật trong danh sách
+    public void SelectCharacter(int index, Sprite characterSprite)
     {
-        if(currentIndex > 0)
+        currentIndex = index;
+
+        if (previewImage != null)
         {
-            currentIndex--;
-            UpdateView();
+            previewImage.sprite = characterSprite;
+            previewImage.enabled = true;
+            previewImage.preserveAspect = true;
         }
-    }
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
-    private void UpdateView()
-    {
-        for(int i=0;i<chars.Length;i++)
+
+        // Lưu luôn vào PhotonManager để dùng lúc spawn player
+        if (PhotonManager.Instance != null)
         {
-            if(i<currentIndex)
-            {
-                chars[i].rectTransform.anchoredPosition = leftHidePos;
-                chars[i].gameObject.SetActive(false);
-            }
-            else if(i==currentIndex)
-            {
-                chars[i].rectTransform.sizeDelta = bigSize;
-                chars[i].color = bigColor;
-                chars[i].gameObject.SetActive(true);
-                chars[i].rectTransform.anchoredPosition = centerPos;
-            }
-            else if(i == currentIndex+1)
-            {
-                chars[i].rectTransform.sizeDelta = smallSize;
-                chars[i].color = smallColor;
-                chars[i].gameObject.SetActive(true);
-                chars[i].rectTransform.anchoredPosition = rightPos;
-            }
-            else
-            {
-                chars[i].gameObject.SetActive(false);
-            }
+            PhotonManager.Instance.SetSelectedCharacter(index);
         }
-        select_LeftBtn.gameObject.SetActive(currentIndex > 0);
-        select_RightBtn.gameObject.SetActive(currentIndex < chars.Length - 1);
     }
 }

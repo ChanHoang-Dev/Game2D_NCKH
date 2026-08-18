@@ -1,5 +1,6 @@
 using UnityEngine;
 using DG.Tweening;
+using UnityEngine.SceneManagement;
 
 public class StartGame : MonoBehaviour
 {
@@ -9,16 +10,11 @@ public class StartGame : MonoBehaviour
 
     public float duration = 0.5f ;
 
-    public Ease easeType = Ease.InOutSine; // Tweening function for smooth scaling
+    public Ease easeType = Ease.InOutSine; 
 
     public Vector3 originalScale;
 
-    public Sequence sequence;// Sequence to manage the scaling animation
-    [Header("Ui Setting")]
-    [SerializeField] private GameObject startGameUI; // Reference to the start game UI GameObject
-
-    [SerializeField] private GameObject UiInteractable; // Reference to the UI Interactable GameObject
-
+    public Sequence sequence;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -33,23 +29,22 @@ public class StartGame : MonoBehaviour
     }
     private void PlayPulse()
     {
-        sequence = DOTween.Sequence(); // Create a new sequence for the scaling animation
+        sequence = DOTween.Sequence(); 
         sequence.Append(transform.DOScale(originalScale * scaleUp, duration).SetEase(easeType))
                 .Append(transform.DOScale(originalScale * scaleDown, duration).SetEase(easeType))
-                .SetLoops(-1, LoopType.Restart); // Loop the sequence indefinitely
+                .SetLoops(-1, LoopType.Restart); 
     }
     private void OnDisable() {
         if (sequence != null)
         {
-            sequence.Kill(); // Stop the animation when the GameObject is disabled
+            sequence.Kill(); 
         }
-        transform.localScale = originalScale; // Reset the scale to the original value
+        transform.localScale = originalScale; 
     }
     public void OnClickStartGame()
     {
-        sequence.Kill(); // Stop the pulsing animation when the start game button is clicked
-        transform.localScale = originalScale; // Reset the scale to the original value
-        startGameUI.SetActive(false); // Hide the start game UI
-        UiInteractable.SetActive(true); // Show the UI Interactable GameObject
+        sequence.Kill();
+        transform.localScale = originalScale; 
+        SceneManager.LoadScene("SelectedCharacter"); 
     }
 }
