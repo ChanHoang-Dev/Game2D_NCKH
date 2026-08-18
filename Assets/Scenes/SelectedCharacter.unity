@@ -3325,7 +3325,7 @@ MonoBehaviour:
   characterIndex: 2
   characterSprite: {fileID: 8466672319293531365, guid: a8af978540e21c240b00bfd7fa285ef4,
     type: 3}
-  characterSelection: {fileID: 0}
+  characterSelection: {fileID: 1931482614}
   selectedHighlight: {fileID: 0}
 --- !u!114 &1263127649
 MonoBehaviour:

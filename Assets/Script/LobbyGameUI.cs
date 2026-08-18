@@ -4,10 +4,12 @@ using TMPro;
 
 public class LobbyGameUI : MonoBehaviour
 {
-    [Header("Kéo 3 object trong scene LobbyGame vào đây")]
+    [Header("Kéo 4 object trong scene LobbyGame vào đây")]
     public TextMeshProUGUI peopleNumberText; 
     public TextMeshProUGUI roomIdText;       
-    public Button playButton;                
+    public Button playButton;          
+
+    public Button backButton; // Nút quay lại màn chọn nhân vật      
 
     private void Start()
     {
@@ -24,6 +26,11 @@ public class LobbyGameUI : MonoBehaviour
         {
             playButton.onClick.RemoveAllListeners();
             playButton.onClick.AddListener(PhotonManager.Instance.StartGame);
+        }
+        if (backButton != null)
+        {
+            backButton.onClick.RemoveAllListeners();
+            backButton.onClick.AddListener(PhotonManager.Instance.LeaveRoom);
         }
     }
 }

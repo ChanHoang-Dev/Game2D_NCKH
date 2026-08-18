@@ -24512,7 +24512,7 @@ MonoBehaviour:
   m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 16
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 1120, y: 700}
+  m_ReferenceResolution: {x: 960, y: 600}
   m_ScreenMatchMode: 0
   m_MatchWidthOrHeight: 0
   m_PhysicalUnit: 3
@@ -24787,7 +24787,7 @@ MonoBehaviour:
   m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 16
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 1120, y: 700}
+  m_ReferenceResolution: {x: 960, y: 600}
   m_ScreenMatchMode: 0
   m_MatchWidthOrHeight: 0
   m_PhysicalUnit: 3
@@ -26383,6 +26383,7 @@ MonoBehaviour:
   timeText: {fileID: 1045426573}
   ghostCountText: {fileID: 339017736}
   humanCountText: {fileID: 221120133}
+  returnSelectionSceneBtn: {fileID: 33856976}
 --- !u!4 &1406174068
 Transform:
   m_ObjectHideFlags: 0

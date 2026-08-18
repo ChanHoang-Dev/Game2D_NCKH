@@ -451,6 +451,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: Canvas
       objectReference: {fileID: 0}
+    - target: {fileID: 4599824302394268861, guid: a1dc155ba608b7241a37d56e05b7c855,
+        type: 3}
+      propertyPath: m_SortingOrder
+      value: 5
+      objectReference: {fileID: 0}
     - target: {fileID: 4622258935011807876, guid: a1dc155ba608b7241a37d56e05b7c855,
         type: 3}
       propertyPath: m_Pivot.x
@@ -726,6 +731,16 @@ PrefabInstance:
         type: 3}
       propertyPath: m_AnchoredPosition.y
       value: -161.88
+      objectReference: {fileID: 0}
+    - target: {fileID: 8391063024969591903, guid: cfc2f5bcfa84d3444a904155e7d49797,
+        type: 3}
+      propertyPath: m_SortingOrder
+      value: 5
+      objectReference: {fileID: 0}
+    - target: {fileID: 8391063024969591903, guid: cfc2f5bcfa84d3444a904155e7d49797,
+        type: 3}
+      propertyPath: m_SortingLayerID
+      value: -105541197
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

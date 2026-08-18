@@ -5,6 +5,7 @@ using Photon.Pun;
 using Photon.Realtime;
 using TMPro;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.UI;
 
 namespace Cainos.PixelArtTopDown_Basic
 {
@@ -24,6 +25,7 @@ namespace Cainos.PixelArtTopDown_Basic
         public TextMeshProUGUI timeText;
         public TextMeshProUGUI ghostCountText;
         public TextMeshProUGUI humanCountText;
+        [SerializeField] private Button returnSelectionSceneBtn;
 
         private double gameStartTime; // Thời gian bắt đầu game (PhotonNetwork.Time)
         private bool gameStarted = false;
@@ -66,6 +68,7 @@ namespace Cainos.PixelArtTopDown_Basic
                 // Wait for all players to load, then start game
                 gameCoroutine = StartCoroutine(WaitAndStartGame());
             }
+            returnSelectionSceneBtn.onClick.AddListener(ReturnToLobby);
         }
 
         private void Update()
@@ -304,7 +307,6 @@ namespace Cainos.PixelArtTopDown_Basic
         }
         public override void OnPlayerLeftRoom(Player otherPlayer)
         {
-            PlayerController leftPlayer = null;
             foreach (PlayerController player in allPlayers)
             {
                 if (player.photonView.Owner == otherPlayer)
