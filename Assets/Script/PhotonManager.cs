@@ -25,10 +25,14 @@ public class PhotonManager : MonoBehaviourPunCallbacks
     public TMP_InputField joinRoomIdInput;
 
     [Header("UI - Lobby Scene (phòng chờ) - KHÔNG gán tay ở đây")]
-    [Tooltip("Các field này được LobbyRoomUI.cs (đặt trong scene LobbyGame) tự đăng ký lúc runtime, vì PhotonManager và object UI nằm khác scene.")]
+    [Tooltip("Các field này được LobbyGameUI.cs (đặt trong scene LobbyGame) tự đăng ký lúc runtime, vì PhotonManager và object UI nằm khác scene.")]
     private TextMeshProUGUI peopleNumberText; // "2/10" - số người hiện tại / tối đa
     private TextMeshProUGUI roomIdText;       // "Room: ABC123"
     private Button playButton;                // Nút Play - chỉ chủ phòng (Master Client) mới thấy
+
+    // Đánh dấu bộ UI phòng chờ hiện tại đã được đăng ký hay chưa, dùng để tránh
+    // OnSceneLoaded setup UI khi field còn null (race condition với LobbyGameUI.Start()).
+    private bool lobbyUIRegistered = false;
 
     public GameObject notifi_BossLeave;
     public TextMeshProUGUI textNotifi_BossLeave;
@@ -80,8 +84,9 @@ public class PhotonManager : MonoBehaviourPunCallbacks
         UpdateUIBasedOnScene();
 
         // Nếu đang ở scene chọn nhân vật, mở sẵn SelectPanel
-        if (selectPanel != null && SceneManager.GetActiveScene().name == "SelectedCharacter")
+        if (SceneManager.GetActiveScene().name == "SelectedCharacter")
         {
+            RebindSelectedCharacterSceneReferences();
             ShowSelectPanel();
         }
     }
@@ -104,16 +109,196 @@ public class PhotonManager : MonoBehaviourPunCallbacks
 
         if (scene.name == "LobbyGame")
         {
-            SetupLobbyRoomUI();
+            // Reset field UI cũ + cờ đăng ký. UI thật sự sẽ do LobbyGameUI.Start() gọi
+            // RegisterLobbyRoomUI() đăng ký lại - tại đây KHÔNG gọi SetupLobbyRoomUI() nữa
+            // vì field peopleNumberText/roomIdText/playButton chắc chắn đang null lúc này
+            // (object UI của scene LobbyGame chưa chắc đã chạy Start() xong), gọi sớm sẽ set
+            // vào field null -> không có tác dụng gì, khiến UI hiện giá trị mặc định sai
+            // (text "Id" cứng, nút Play hiện sai cho non-host, số người sai).
+            peopleNumberText = null;
+            roomIdText = null;
+            playButton = null;
+            lobbyUIRegistered = false;
 
             StartCoroutine(WaitForRoomAndSpawn()); // Delay để đảm bảo UI đã được đăng ký
         }
         else if (scene.name == "GameScene" && PhotonNetwork.InRoom)
         {
             // Sang GameScene thật thì spawn lại (map khác, cần spawn point khác)
+            lobbyUIRegistered = false;
             isSpawned = false;
             StartCoroutine(WaitForRoomAndSpawn());
         }
+        else
+        {
+            lobbyUIRegistered = false;
+
+            if (scene.name == "SelectedCharacter")
+            {
+                // QUAN TRỌNG: PhotonManager là singleton DontDestroyOnLoad, nhưng selectPanel /
+                // createRoomPanel / joinRoomPanel được kéo tay trong Inspector, trỏ tới các object
+                // CỤ THỂ của lần load scene "SelectedCharacter" đầu tiên. Mỗi khi scene này bị
+                // unload rồi load lại (ví dụ sau khi rời phòng), Unity tạo ra INSTANCE MỚI của các
+                // object đó, còn field cũ trong PhotonManager vẫn trỏ tới object đã bị destroy.
+                // Gọi SetActive() trên object đã destroy sẽ không có tác dụng gì (đây chính là lý do
+                // nút "Tạo phòng"/"Vào phòng" bấm không phản ứng gì sau khi quay lại scene này lần 2).
+                // => Phải tìm lại reference mới mỗi lần scene được load.
+                RebindSelectedCharacterSceneReferences();
+                ShowSelectPanel();
+            }
+        }
+    }
+
+    [Header("SelectedCharacter Scene - Tên GameObject để tự tìm lại reference sau mỗi lần load scene")]
+    [Tooltip("Điền đúng tên GameObject trong Hierarchy của scene SelectedCharacter. Dùng để PhotonManager tự GameObject.Find lại panel sau khi scene bị load lại (rời phòng quay về), vì reference cũ trong Inspector sẽ bị mất khi scene unload.")]
+    public string selectPanelObjectName = "SelectPanel";
+    public string createRoomPanelObjectName = "CreateRoomPanel";
+    public string joinRoomPanelObjectName = "JoinRoomPanel";
+    public string createPlayerNameInputObjectName = "CreatePlayerNameInput";
+    public string createRoomIdInputObjectName = "CreateRoomIdInput";
+    public string joinPlayerNameInputObjectName = "JoinPlayerNameInput";
+    public string joinRoomIdInputObjectName = "JoinRoomIdInput";
+
+    [Tooltip("Tên GameObject của 2 nút mở panel Tạo phòng / Vào phòng trong SelectPanel. KHÔNG gán OnClick() cho 2 nút này bằng tay trong Inspector - PhotonManager sẽ tự gán bằng code mỗi khi scene load lại, vì gán tay sẽ bị Missing sau khi rời phòng quay về (do object bị tạo lại nhưng OnClick binding cũ trỏ vào instance PhotonManager đã bị 'di cư' sang persistent scene).")]
+    public string createRoomButtonObjectName = "tạo phòng";
+    public string joinRoomButtonObjectName = "vào phòng";
+
+    public string confirmCreateRoomButtonObjectName = " ";
+    public string confirmJoinRoomButtonObjectName = " ";
+    public string cancelButtonObjectName = "";
+
+    private void RebindSelectedCharacterSceneReferences()
+    {
+        selectPanel = FindInActiveSceneByName(selectPanelObjectName);
+        createRoomPanel = FindInActiveSceneByName(createRoomPanelObjectName);
+        joinRoomPanel = FindInActiveSceneByName(joinRoomPanelObjectName);
+
+        GameObject createNameObj = FindInActiveSceneByName(createPlayerNameInputObjectName);
+        GameObject createIdObj = FindInActiveSceneByName(createRoomIdInputObjectName);
+        GameObject joinNameObj = FindInActiveSceneByName(joinPlayerNameInputObjectName);
+        GameObject joinIdObj = FindInActiveSceneByName(joinRoomIdInputObjectName);
+
+        if (createNameObj != null) createPlayerNameInput = createNameObj.GetComponent<TMP_InputField>();
+        if (createIdObj != null) createRoomIdInput = createIdObj.GetComponent<TMP_InputField>();
+        if (joinNameObj != null) joinPlayerNameInput = joinNameObj.GetComponent<TMP_InputField>();
+        if (joinIdObj != null) joinRoomIdInput = joinIdObj.GetComponent<TMP_InputField>();
+
+        if (selectPanel == null) Debug.LogError($"[PhotonManager] Không tìm thấy GameObject tên '{selectPanelObjectName}' trong scene SelectedCharacter!");
+        if (createRoomPanel == null) Debug.LogError($"[PhotonManager] Không tìm thấy GameObject tên '{createRoomPanelObjectName}' trong scene SelectedCharacter!");
+        if (joinRoomPanel == null) Debug.LogError($"[PhotonManager] Không tìm thấy GameObject tên '{joinRoomPanelObjectName}' trong scene SelectedCharacter!");
+
+        // Gán OnClick cho 2 nút "Tạo phòng" / "Vào phòng" BẰNG CODE, không dựa vào binding
+        // Inspector đã bake sẵn trong file scene. Lý do: object nút này bị Unity destroy và tạo
+        // lại mới mỗi khi scene SelectedCharacter load lại (sau khi rời phòng), còn OnClick binding
+        // cũ trong file scene trỏ tới PhotonManager instance lúc thiết kế - instance đó tuy vẫn
+        // đang sống (nhờ DontDestroyOnLoad) nhưng không còn nằm trong scene SelectedCharacter nữa,
+        // nên Unity không resolve lại được -> OnClick hiện "Missing", bấm không có phản ứng gì.
+        // Gán bằng code luôn dùng đúng Instance đang chạy nên không bao giờ bị mất kết nối.
+        GameObject createBtnObj = FindInActiveSceneByName(createRoomButtonObjectName);
+        GameObject joinBtnObj = FindInActiveSceneByName(joinRoomButtonObjectName);
+
+        GameObject confirmCreateBtnObj = FindInActiveSceneByName(confirmCreateRoomButtonObjectName);
+        GameObject confirmJoinBtnObj = FindInActiveSceneByName(confirmJoinRoomButtonObjectName);
+
+        GameObject CancelPanel = FindInActiveSceneByName(cancelButtonObjectName);
+
+        if (createBtnObj != null)
+        {
+            Button createBtn = createBtnObj.GetComponent<Button>();
+            if (createBtn != null)
+            {
+                createBtn.onClick.RemoveAllListeners(); // tránh add trùng listener nếu rebind nhiều lần
+                createBtn.onClick.AddListener(OnClickOpenCreateRoomPanel);
+            }
+        }
+        else
+        {
+            Debug.LogError($"[PhotonManager] Không tìm thấy nút tên '{createRoomButtonObjectName}' trong scene SelectedCharacter!");
+        }
+
+        if (joinBtnObj != null)
+        {
+            Button joinBtn = joinBtnObj.GetComponent<Button>();
+            if (joinBtn != null)
+            {
+                joinBtn.onClick.RemoveAllListeners();
+                joinBtn.onClick.AddListener(OnClickOpenJoinRoomPanel);
+            }
+        }
+        else
+        {
+            Debug.LogError($"[PhotonManager] Không tìm thấy nút tên '{joinRoomButtonObjectName}' trong scene SelectedCharacter!");
+        }
+        if (confirmCreateBtnObj != null)
+        {
+            Button confirmCreateBtn = confirmCreateBtnObj.GetComponent<Button>();
+            if (confirmCreateBtn != null)
+            {
+                confirmCreateBtn.onClick.RemoveAllListeners(); // tránh add trùng listener nếu rebind nhiều lần
+                confirmCreateBtn.onClick.AddListener(OnClickConfirmCreateRoom);
+            }
+        }
+        else
+        {
+            Debug.LogError($"[PhotonManager] Không tìm thấy nút tên '{confirmCreateRoomButtonObjectName}' trong scene SelectedCharacter!");
+        }
+        if (confirmJoinBtnObj != null)
+        {
+            Button confirmJoinBtn = confirmJoinBtnObj.GetComponent<Button>();
+            if (confirmJoinBtn != null)
+            {
+                confirmJoinBtn.onClick.RemoveAllListeners();
+                confirmJoinBtn.onClick.AddListener(OnClickConfirmJoinRoom);
+            }
+        }
+        else
+        {
+            Debug.LogError($"[PhotonManager] Không tìm thấy nút tên '{confirmJoinRoomButtonObjectName}' trong scene SelectedCharacter!");
+        }
+        if (CancelPanel!= null)
+        {
+            Button cancelBtn = CancelPanel.GetComponent<Button>();
+            if (cancelBtn != null)
+            {
+                cancelBtn.onClick.RemoveAllListeners();
+                cancelBtn.onClick.AddListener(OnClickCancelPanel);
+            }
+        }
+        else
+        {
+            Debug.LogError($"[PhotonManager] Không tìm thấy nút tên '{cancelButtonObjectName}' trong scene SelectedCharacter!");
+        }
+    }
+
+    // Tìm GameObject theo tên trong scene hiện tại, kể cả khi nó đang bị inactive
+    // (GameObject.Find thường KHÔNG tìm được object inactive, nên phải duyệt thủ công).
+    private GameObject FindInActiveSceneByName(string objectName)
+    {
+        if (string.IsNullOrEmpty(objectName)) return null;
+
+        Scene activeScene = SceneManager.GetActiveScene();
+        GameObject[] rootObjects = activeScene.GetRootGameObjects();
+
+        foreach (GameObject root in rootObjects)
+        {
+            Transform found = FindChildRecursive(root.transform, objectName);
+            if (found != null) return found.gameObject;
+        }
+
+        return null;
+    }
+
+    private Transform FindChildRecursive(Transform parent, string name)
+    {
+        if (parent.name == name) return parent;
+
+        foreach (Transform child in parent)
+        {
+            Transform result = FindChildRecursive(child, name);
+            if (result != null) return result;
+        }
+
+        return null;
     }
     private IEnumerator WaitForRoomAndSpawn()
     {
@@ -332,19 +517,69 @@ public class PhotonManager : MonoBehaviourPunCallbacks
             PhotonNetwork.LoadLevel("LobbyGame");
     }
 
+    // Được LobbyGameUI.Start() gọi ngay khi scene LobbyGame load xong, trên MỌI client
+    // (host lẫn client thường). Đây là nơi DUY NHẤT khởi tạo UI phòng chờ.
     public void RegisterLobbyRoomUI(TextMeshProUGUI peopleNumber, TextMeshProUGUI roomId, Button play)
     {
         peopleNumberText = peopleNumber;
         roomIdText = roomId;
         playButton = play;
+        lobbyUIRegistered = true;
+
+        // Dừng coroutine chờ cũ (nếu có) để tránh set UI 2 lần chồng nhau
+        StopAllCoroutines_LobbyUIWait();
 
         if (PhotonNetwork.InRoom)
         {
             SetupLobbyRoomUI();
         }
+        else
+        {
+            // Trường hợp UI đăng ký xong nhưng client chưa kịp InRoom == true
+            // (thường xảy ra ở client thường do độ trễ mạng khi AutomaticallySyncScene
+            // tự load scene theo host). Thay vì bỏ qua im lặng như code cũ, chủ động
+            // đợi cho tới khi InRoom == true rồi mới setup, đảm bảo UI luôn được set đúng.
+            lobbyUIWaitCoroutine = StartCoroutine(WaitInRoomThenSetupLobbyUI());
+        }
     }
+
+    private Coroutine lobbyUIWaitCoroutine;
+
+    private void StopAllCoroutines_LobbyUIWait()
+    {
+        if (lobbyUIWaitCoroutine != null)
+        {
+            StopCoroutine(lobbyUIWaitCoroutine);
+            lobbyUIWaitCoroutine = null;
+        }
+    }
+
+    private IEnumerator WaitInRoomThenSetupLobbyUI()
+    {
+        float timeout = 10f;
+        float timer = 0f;
+
+        while (!PhotonNetwork.InRoom && timer < timeout)
+        {
+            timer += Time.deltaTime;
+            yield return null;
+        }
+
+        lobbyUIWaitCoroutine = null;
+
+        if (!PhotonNetwork.InRoom)
+        {
+            Debug.LogError("[LOBBY UI] Timeout chờ InRoom để setup UI phòng chờ!");
+            yield break;
+        }
+
+        SetupLobbyRoomUI();
+    }
+
     private void SetupLobbyRoomUI()
     {
+        if (!lobbyUIRegistered) return; // Field có thể còn null nếu chưa đăng ký, tránh set nhầm
+
         if (roomIdText != null)
             roomIdText.text = "Room: " + PhotonNetwork.CurrentRoom.Name;
 
@@ -369,15 +604,19 @@ public class PhotonManager : MonoBehaviourPunCallbacks
     private void UpdatePlayerCountUI()
     {
         if (SceneManager.GetActiveScene().name != "LobbyGame") return;
+        if (!lobbyUIRegistered) return; // Field có thể còn null nếu UI chưa đăng ký xong
 
         if (peopleNumberText != null)
         {
             peopleNumberText.text = PhotonNetwork.CurrentRoom.PlayerCount + "/" + PhotonNetwork.CurrentRoom.MaxPlayers;
         }
-        if (PhotonNetwork.IsMasterClient && playButton != null)
+        if (playButton != null)
         {
-            playButton.gameObject.SetActive(true);
-            playButton.interactable = PhotonNetwork.CurrentRoom.PlayerCount >= minPlayers;
+            playButton.gameObject.SetActive(PhotonNetwork.IsMasterClient);
+            if (PhotonNetwork.IsMasterClient)
+            {
+                playButton.interactable = PhotonNetwork.CurrentRoom.PlayerCount >= minPlayers;
+            }
         }
     }
 

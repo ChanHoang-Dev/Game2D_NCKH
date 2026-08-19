@@ -9,7 +9,7 @@ public class LobbyGameUI : MonoBehaviour
     public TextMeshProUGUI roomIdText;       
     public Button playButton;          
 
-    public Button backButton; // Nút quay lại màn chọn nhân vật      
+    public Button backButton;      
 
     private void Start()
     {
@@ -18,8 +18,10 @@ public class LobbyGameUI : MonoBehaviour
             Debug.LogError("Không tìm thấy PhotonManager.Instance! Kiểm tra scene đầu tiên có PhotonManager chưa.");
             return;
         }
+        if (peopleNumberText == null) Debug.LogError("[LobbyGameUI] Chưa gán peopleNumberText trong Inspector!");
+        if (roomIdText == null) Debug.LogError("[LobbyGameUI] Chưa gán roomIdText trong Inspector!");
+        if (playButton == null) Debug.LogError("[LobbyGameUI] Chưa gán playButton trong Inspector!");
 
-        // Đăng ký ngược UI này vào PhotonManager
         PhotonManager.Instance.RegisterLobbyRoomUI(peopleNumberText, roomIdText, playButton);
 
         if (playButton != null)

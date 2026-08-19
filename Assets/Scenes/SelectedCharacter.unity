@@ -178,6 +178,18 @@ MonoBehaviour:
   spawnSafeDistance: 3
   lobbySpawnAreaMin: {x: -7, y: -8}
   lobbySpawnAreaMax: {x: 7, y: 4}
+  selectPanelObjectName: "Ch\u1ECDn nh\xE2n v\u1EADt"
+  createRoomPanelObjectName: TaoPhongMenu
+  joinRoomPanelObjectName: VaoPhongMenu
+  createPlayerNameInputObjectName: "Nh\u1EADp T\xEAn"
+  createRoomIdInputObjectName: "nh\u1EADp ID ph\xF2ng"
+  joinPlayerNameInputObjectName: "Nh\u1EADp T\xEAn Jojn"
+  joinRoomIdInputObjectName: "nh\u1EADp ID ph\xF2ng Join"
+  createRoomButtonObjectName: "t\u1EA1o ph\xF2ng"
+  joinRoomButtonObjectName: "v\xE0o ph\xF2ng"
+  confirmCreateRoomButtonObjectName: "T\u1EA1o"
+  confirmJoinRoomButtonObjectName: In
+  cancelButtonObjectName: "H\u1EE7y"
 --- !u!4 &4782053
 Transform:
   m_ObjectHideFlags: 0
@@ -206,7 +218,7 @@ GameObject:
   - component: {fileID: 22291857}
   - component: {fileID: 22291856}
   m_Layer: 5
-  m_Name: "V\xE0o "
+  m_Name: In
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -274,19 +286,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 22291857}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 4782052}
-        m_TargetAssemblyTypeName: PhotonManager, Assembly-CSharp
-        m_MethodName: OnClickConfirmJoinRoom
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!114 &22291857
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1089,7 +1089,7 @@ GameObject:
   - component: {fileID: 644551344}
   - component: {fileID: 644551343}
   m_Layer: 5
-  m_Name: "nh\u1EADp ID ph\xF2ng"
+  m_Name: "nh\u1EADp ID ph\xF2ng Join"
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1531,19 +1531,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1065638789}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 4782052}
-        m_TargetAssemblyTypeName: PhotonManager, Assembly-CSharp
-        m_MethodName: OnClickCancelPanel
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!114 &1065638789
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1596,7 +1584,7 @@ GameObject:
   - component: {fileID: 1128482593}
   - component: {fileID: 1128482592}
   m_Layer: 5
-  m_Name: "Nh\u1EADp T\xEAn"
+  m_Name: "Nh\u1EADp T\xEAn Jojn"
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1932,6 +1920,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_SizeDelta.y
       value: -17
+      objectReference: {fileID: 0}
+    - target: {fileID: 384885154468196596, guid: f31bd130556c2cb4d9653e9e916fe43c,
+        type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.size
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 384885154468196596, guid: f31bd130556c2cb4d9653e9e916fe43c,
         type: 3}
@@ -2303,6 +2296,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_AnchoredPosition.y
       value: 90
+      objectReference: {fileID: 0}
+    - target: {fileID: 3137834544373681443, guid: f31bd130556c2cb4d9653e9e916fe43c,
+        type: 3}
+      propertyPath: m_Name
+      value: "T\u1EA1o"
       objectReference: {fileID: 0}
     - target: {fileID: 3138802410467718530, guid: f31bd130556c2cb4d9653e9e916fe43c,
         type: 3}
@@ -2796,6 +2794,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6931536479913102206, guid: f31bd130556c2cb4d9653e9e916fe43c,
         type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.size
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6931536479913102206, guid: f31bd130556c2cb4d9653e9e916fe43c,
+        type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
       objectReference: {fileID: 4782052}
@@ -2808,6 +2811,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_TargetAssemblyTypeName
       value: PhotonManager, Assembly-CSharp
+      objectReference: {fileID: 0}
+    - target: {fileID: 7290849747644256624, guid: f31bd130556c2cb4d9653e9e916fe43c,
+        type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.size
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7290849747644256624, guid: f31bd130556c2cb4d9653e9e916fe43c,
         type: 3}
@@ -2853,6 +2861,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_AnchoredPosition.y
       value: -16.889984
+      objectReference: {fileID: 0}
+    - target: {fileID: 7373676284464315031, guid: f31bd130556c2cb4d9653e9e916fe43c,
+        type: 3}
+      propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.size
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7373676284464315031, guid: f31bd130556c2cb4d9653e9e916fe43c,
         type: 3}
@@ -2912,7 +2925,7 @@ PrefabInstance:
     - target: {fileID: 7445133402908844237, guid: f31bd130556c2cb4d9653e9e916fe43c,
         type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -209.22998
+      value: -209.23001
       objectReference: {fileID: 0}
     - target: {fileID: 7445133402908844237, guid: f31bd130556c2cb4d9653e9e916fe43c,
         type: 3}
@@ -3826,7 +3839,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -209.22998, y: -46.070007}
+  m_AnchoredPosition: {x: -209.23001, y: -46.070015}
   m_SizeDelta: {x: 194.22, y: -69.67}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1852714386

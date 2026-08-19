@@ -27,6 +27,10 @@ namespace Cainos.PixelArtTopDown_Basic
         public TextMeshProUGUI humanCountText;
         [SerializeField] private Button returnSelectionSceneBtn;
 
+        [Header("Host Left After Game End")]
+        [Tooltip("Số giây đếm ngược trước khi tự động rời phòng nếu host rời sau khi game đã kết thúc.")]
+        public float hostLeftReturnDelay = 10f;
+
         private double gameStartTime; // Thời gian bắt đầu game (PhotonNetwork.Time)
         private bool gameStarted = false;
         private bool waitingForPlayers = true;
@@ -38,6 +42,18 @@ namespace Cainos.PixelArtTopDown_Basic
         private int humanCount = 0;
 
         private Coroutine gameCoroutine;
+        private Coroutine hostLeftCountdownCoroutine;
+        private string baseResultText = ""; // Nội dung thắng/thua gốc, dùng để ghép thêm dòng countdown
+
+        // Đánh dấu master client ĐÃ từng bị switch (host cũ đã rời) TRƯỚC KHI biết game đã kết thúc
+        // hay chưa. Lý do cần cờ độc lập này: EndGameRPC là RPC async, còn OnMasterClientSwitched là
+        // event của chính Photon room - thứ tự 2 sự kiện này tới trên từng máy KHÔNG được đảm bảo cố
+        // định. Nếu chỉ dựa vào "OnMasterClientSwitched chạy trong lúc gameEnded == true" để bắt đầu
+        // countdown, client nào nhận được switch event TRƯỚC KHI EndGameRPC kịp tới sẽ bỏ lỡ hoàn
+        // toàn countdown (lúc switch chạy, gameEnded vẫn false -> rơi vào nhánh "game chưa kết thúc").
+        // Cờ này ghi nhận sự kiện switch xảy ra bất kể lúc đó gameEnded là gì, để EndGameRPC có thể
+        // tự kiểm tra lại và bắt đầu countdown ngay khi nó chạy, dù chạy sau switch bao lâu.
+        private bool masterSwitchedWhileNotEndedYet = false;
 
         private void Awake()
         {
@@ -253,7 +269,26 @@ namespace Cainos.PixelArtTopDown_Basic
             endGameCanvas.SetActive(true);
             TimeAndCountCanvas.SetActive(false);
 
-            // Determine winner
+            // Tính lại số lượng ghost/human còn sống NGAY tại thời điểm này (không dùng biến
+            // ghostCount/humanCount cũ vì chúng có thể chưa kịp cập nhật đồng bộ trên từng client
+            // do EndGameRPC là RPC async - đây chính là nguyên nhân gây sai kết quả trước đây).
+            int aliveGhosts = 0;
+            int aliveHumans = 0;
+            foreach (PlayerController player in allPlayers)
+            {
+                if (player.IsGhost)
+                    aliveGhosts++;
+                else if (!player.IsEliminated)
+                    aliveHumans++;
+            }
+
+            // Xác định phe thắng DUY NHẤT MỘT LẦN, luật rõ ràng không mơ hồ:
+            // - Ghost thắng nếu không còn human nào sống sót (bắt hết người trước khi hết giờ).
+            // - Human thắng trong MỌI trường hợp khác còn lại (hết giờ mà vẫn còn ít nhất 1 human sống,
+            //   hoặc ghost đã bị loại hết - dù luật hiện tại ghost không bị loại nên case này hiếm xảy ra).
+            bool ghostWins = (aliveHumans == 0);
+
+            // Determine winner cho local player
             PlayerController localPlayer = null;
             foreach (PlayerController player in allPlayers)
             {
@@ -266,35 +301,22 @@ namespace Cainos.PixelArtTopDown_Basic
 
             if (localPlayer != null)
             {
-                // Nếu bị loại = thua
-                if (localPlayer.IsEliminated)
+                if (localPlayer.IsGhost)
                 {
-                    resultText.text = "You Lose!";
-                }
-                // Nếu là ma và còn người sống =0  ma thắng
-                else if (localPlayer.IsGhost && humanCount == 0)
-                {
-                    resultText.text = "You Win!";
-                }
-                // Nếu là người và hết giờ mà còn sống = người thắng
-                else if (!localPlayer.IsGhost && humanCount > 0)
-                {
-                    resultText.text = "You Win!";
-                }
-                // Các trường hợp khác
-                else if (ghostCount > humanCount)
-                {
-                    resultText.text = localPlayer.IsGhost ? "You Win!" : "You Lose!";
-                }
-                else if (humanCount > ghostCount)
-                {
-                    resultText.text = !localPlayer.IsGhost && !localPlayer.IsEliminated ? "You Win!" : "You Lose!";
+                    // Ma thắng khi bắt hết người; ma thua khi hết giờ mà vẫn còn người sống.
+                    resultText.text = ghostWins ? "You Win!" : "You Lose!";
                 }
                 else
                 {
-                    resultText.text = "Draw!";
+                    // Người bị bắt (bị loại) luôn luôn thua, bất kể phe nào thắng chung.
+                    // Người còn sống khi game kết thúc = thắng (vì ghostWins chỉ true khi
+                    // aliveHumans == 0, nên nếu người này còn sống thì chắc chắn ghostWins == false).
+                    resultText.text = localPlayer.IsEliminated ? "You Lose!" : "You Win!";
                 }
             }
+
+            // Lưu lại nội dung thắng/thua gốc để dùng khi ghép dòng countdown (nếu host rời sau đó)
+            baseResultText = resultText.text;
 
             // Disable all player movement
             foreach (PlayerController player in allPlayers)
@@ -304,45 +326,167 @@ namespace Cainos.PixelArtTopDown_Basic
                     player.enabled = false;
                 }
             }
+
+            // Xử lý trường hợp master client đã bị switch (host cũ rời) TRƯỚC KHI RPC EndGameRPC
+            // kịp chạy trên máy này. Nếu không kiểm tra ở đây, client này sẽ không bao giờ tự bắt
+            // đầu countdown, vì OnMasterClientSwitched của nó đã chạy từ trước lúc gameEnded == false,
+            // và sẽ không có lần switch nào khác xảy ra nữa để kích hoạt lại.
+            if (masterSwitchedWhileNotEndedYet)
+            {
+                TryStartHostLeftCountdown();
+            }
         }
+
+        // Bắt đầu coroutine đếm ngược 10s rồi rời phòng, dùng chung cho cả 2 trường hợp:
+        // 1) OnMasterClientSwitched chạy trong lúc gameEnded đã true (trường hợp thông thường).
+        // 2) EndGameRPC chạy sau khi phát hiện switch đã xảy ra từ trước (trường hợp race condition).
+        private void TryStartHostLeftCountdown()
+        {
+            if (hostLeftCountdownCoroutine == null && PhotonNetwork.InRoom)
+            {
+                hostLeftCountdownCoroutine = StartCoroutine(HostLeftAfterGameEndCountdown());
+            }
+        }
+
         public override void OnPlayerLeftRoom(Player otherPlayer)
         {
             foreach (PlayerController player in allPlayers)
             {
                 if (player.photonView.Owner == otherPlayer)
                 {
-                    if (PhotonNetwork.IsMasterClient && player.photonView != null)
+                    // Không gọi PhotonNetwork.Destroy() ngay tại đây. Lý do: OnPlayerLeftRoom và
+                    // OnMasterClientSwitched có thể tới gần như cùng lúc nhưng KHÔNG đảm bảo thứ tự,
+                    // và ngay cả khi PhotonNetwork.IsMasterClient (cờ phía client) đã báo true, server
+                    // có thể vẫn chưa hoàn tất xác nhận quyền MasterClient cho thao tác network-remove
+                    // này, dẫn tới lỗi "Client is neither owner nor MasterClient taking over...".
+                    // Trì hoãn 1 frame để quyền MasterClient kịp ổn định trước khi thử Destroy.
+                    if (player != null && player.photonView != null)
                     {
-                        PhotonNetwork.Destroy(player.gameObject);
+                        StartCoroutine(DestroyLeftPlayerNextFrame(player.gameObject));
                     }
                     break;
                 }
+            }
+        }
+
+        private IEnumerator DestroyLeftPlayerNextFrame(GameObject playerObj)
+        {
+            yield return null; // đợi 1 frame để PhotonNetwork.IsMasterClient / quyền sở hữu ổn định
+
+            if (playerObj == null) yield break; // object có thể đã bị hủy bởi client khác trong lúc chờ
+
+            if (!PhotonNetwork.IsMasterClient) yield break; // không còn là master nữa thì không hủy
+
+            PhotonView pv = playerObj.GetComponent<PhotonView>();
+            if (pv == null) yield break;
+
+            // Vẫn có thể thất bại trong trường hợp hiếm (ví dụ chính máy này cũng đang trong quá
+            // trình rời phòng). Bọc try-catch để không log lỗi ồn ào, không ảnh hưởng luồng game -
+            // object rác này sẽ được Photon tự dọn khi phòng đóng hoặc do client khác thử lại.
+            try
+            {
+                PhotonNetwork.Destroy(playerObj);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[GameManager] Không thể destroy player object đã rời phòng (sẽ được dọn sau): " + e.Message);
             }
         }
         public override void OnMasterClientSwitched(Player newMasterClient)
         {
             Debug.Log("Master client switched to: " + newMasterClient.NickName);
 
+            // Trường hợp game ĐÃ kết thúc (đang ở màn hình thắng/thua) và host cũ vừa rời:
+            // tất cả client còn lại (kể cả host mới) sẽ đếm ngược rồi tự rời phòng,
+            // vì trận đã xong nên không cần tiếp tục giữ phòng.
+            if (gameEnded)
+            {
+                TryStartHostLeftCountdown();
+                return;
+            }
+
+            // gameEnded vẫn đang false tại đây, nhưng có thể EndGameRPC đã được gửi đi và đang
+            // trên đường tới (chỉ chưa được xử lý xong trên máy này). Đánh dấu lại để EndGameRPC,
+            // khi nó thực sự chạy, biết rằng switch đã xảy ra và cần bắt đầu countdown ngay lập tức
+            // thay vì chờ một OnMasterClientSwitched khác (có thể không bao giờ tới nữa).
+            masterSwitchedWhileNotEndedYet = true;
+
+            // Trường hợp game CHƯA kết thúc: Photon đã tự chuyển master client,
+            // ở đây chỉ cần đảm bảo logic game (đếm giờ/chọn ma) tiếp tục chạy đúng
+            // trên master client mới, tránh crash hoặc đứng game.
             if (PhotonNetwork.IsMasterClient)
             {
-                // If the new master client is the local player, check if the game has already started
                 if (!gameStarted)
                 {
                     if (gameCoroutine != null)
                     {
                         StopCoroutine(gameCoroutine);// Dừng coroutine cũ nếu nó đang chạy
                     }
-                    StartCoroutine(WaitAndStartGame());
+                    gameCoroutine = StartCoroutine(WaitAndStartGame());
                 }// Bắt đầu lại quá trình chờ và chọn ma nếu game chưa bắt đầu
-                else if (!gameEnded)
+                else
                 {
                     UpdatePlayerCounts();// Nếu game đã bắt đầu, cập nhật lại số lượng người chơi để kiểm tra điều kiện thắng thua (trường hợp chủ phòng rời đi giữa chừng)
                 }
             }
         }
+
+        private IEnumerator HostLeftAfterGameEndCountdown()
+        {
+            float remaining = hostLeftReturnDelay;
+
+            while (remaining > 0f)
+            {
+                // Nếu trong lúc đếm ngược mà mình đã rời phòng rồi (ví dụ tự bấm nút Back),
+                // hoặc client không còn kết nối, thì dừng ngay, không cố LeaveRoom() lần nữa.
+                if (!PhotonNetwork.InRoom)
+                {
+                    hostLeftCountdownCoroutine = null;
+                    yield break;
+                }
+
+                if (resultText != null)
+                {
+                    string suffix = "\nHost left. Returning to menu in " + Mathf.CeilToInt(remaining) + "s...";
+                    resultText.text = string.IsNullOrEmpty(baseResultText) ? suffix.TrimStart('\n') : baseResultText + suffix;
+                }
+
+                yield return new WaitForSeconds(1f);
+                remaining -= 1f;
+            }
+
+            hostLeftCountdownCoroutine = null;
+
+            // Guard cuối cùng: chỉ gọi LeaveRoom() nếu vẫn thật sự đang ở trong phòng.
+            // Đây là nguyên nhân của lỗi "Operation LeaveRoom (254) not called..." trước đây -
+            // coroutine chạy hết 10s nhưng client đã tự rời phòng từ trước (do bấm Back, hoặc
+            // do một luồng khác cũng gọi LeaveRoom), dẫn tới gọi LeaveRoom() lần 2 khi client
+            // đang ở trạng thái "Leaving" hoặc đã "Disconnected".
+            if (PhotonNetwork.InRoom)
+            {
+                if (resultText != null && !string.IsNullOrEmpty(baseResultText))
+                {
+                    resultText.text = baseResultText + "\nReturning to menu...";
+                }
+
+                PhotonNetwork.LeaveRoom();
+            }
+        }
+
         public void ReturnToLobby()
         {
-            PhotonNetwork.LeaveRoom();
+            // Nếu đang có coroutine đếm ngược do host rời, hủy nó trước khi tự rời phòng bằng nút Back,
+            // để tránh việc coroutine gọi LeaveRoom() thêm 1 lần nữa sau khi mình đã rời rồi.
+            if (hostLeftCountdownCoroutine != null)
+            {
+                StopCoroutine(hostLeftCountdownCoroutine);
+                hostLeftCountdownCoroutine = null;
+            }
+
+            if (PhotonNetwork.InRoom)
+            {
+                PhotonNetwork.LeaveRoom();
+            }
         }
     }
 }
